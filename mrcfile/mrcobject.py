@@ -13,8 +13,7 @@ Classes:
 """
 
 # Import Python 3 features for future-proofing
-from __future__ import (absolute_import, division, print_function,
-                        unicode_literals)
+from __future__ import absolute_import, division, print_function, unicode_literals
 
 from datetime import datetime
 
@@ -22,22 +21,27 @@ import numpy as np
 
 from . import utils
 from .dtypes import HEADER_DTYPE, VOXEL_SIZE_DTYPE
-from .constants import (MAP_ID, MRC_FORMAT_VERSION, IMAGE_STACK_SPACEGROUP,
-                        VOLUME_SPACEGROUP, VOLUME_STACK_SPACEGROUP)
+from .constants import (
+    MAP_ID,
+    MRC_FORMAT_VERSION,
+    IMAGE_STACK_SPACEGROUP,
+    VOLUME_SPACEGROUP,
+    VOLUME_STACK_SPACEGROUP,
+)
 
 
 class MrcObject(object):
-    
+
     """An object representing image or volume data in the MRC format.
-    
+
     The header, extended header and data are stored as numpy arrays and
     exposed as read-only attributes. To replace the data or extended header,
     call :meth:`set_data` or :meth:`set_extended_header`. The header cannot be
     replaced but can be modified in place.
-    
+
     Voxel size is exposed as a writeable attribute, but is calculated
     on-the-fly from the header's ``cella`` and ``mx``/``my``/``mz`` fields.
-    
+
     Three-dimensional data can represent either a stack of 2D images, or a 3D
     volume. This is indicated by the header's ``ispg`` (space group) field,
     which is set to 0 for image data and >= 1 for volume data. The
@@ -46,7 +50,7 @@ class MrcObject(object):
     information stored in the data array. For 3D data, the
     :meth:`set_image_stack` and :meth:`set_volume` methods can be used to
     switch between image stack and volume interpretations of the data.
-    
+
     If the data contents have been changed, you can use the
     :meth:`update_header_from_data` and :meth:`update_header_stats` methods to
     make the header consistent with the data. These methods are called
@@ -57,14 +61,14 @@ class MrcObject(object):
     data array and so can be slow for very large arrays. If necessary, the
     :meth:`reset_header_stats` method can be called to set the header fields to
     indicate that the statistics are undetermined.
-    
+
     Attributes:
-    
+
     * :attr:`header`
     * :attr:`extended_header`
     * :attr:`data`
     * :attr:`voxel_size`
-    
+
     Methods:
     
     * :meth:`set_extended_header`
@@ -89,7 +93,7 @@ class MrcObject(object):
     * :meth:`_set_new_data`
     
     """
-    
+
     def __init__(self, **kwargs):
         """Initialise a new :class:`MrcObject`.
         
@@ -106,13 +110,13 @@ class MrcObject(object):
         setting the attributes to :data:`None`.
         """
         super(MrcObject, self).__init__(**kwargs)
-        
+
         # Set empty default attributes
         self._header = None
         self._extended_header = None
         self._data = None
         self._read_only = False
-    
+
     def _check_writeable(self):
         """Check that this MRC object is writeable.
         
@@ -120,14 +124,14 @@ class MrcObject(object):
             :exc:`ValueError`: If this object is read-only.
         """
         if self._read_only:
-            raise ValueError('MRC object is read-only')
-    
+            raise ValueError("MRC object is read-only")
+
     def _create_default_attributes(self):
         """Set valid default values for the header and data attributes."""
         self._create_default_header()
-        self._extended_header = np.empty(0, dtype='V1')
+        self._extended_header = np.empty(0, dtype="V1")
         self._set_new_data(np.empty(0, dtype=np.int8))
-    
+
     def _create_default_header(self):
         """Create a default MRC file header.
         
@@ -141,10 +145,10 @@ class MrcObject(object):
         header.map = MAP_ID
         header.nversion = MRC_FORMAT_VERSION
         header.machst = utils.machine_stamp_from_byte_order(header.mode.dtype.byteorder)
-        
+
         # Default space group is P1
         header.ispg = VOLUME_SPACEGROUP
-        
+
         # Standard cell angles all 90.0 degrees
         default_cell_angle = 90.0
         header.cellb.alpha = default_cell_angle
@@ -153,39 +157,47 @@ class MrcObject(object):
         # (this can also be achieved by assigning a 3-tuple to header.cellb
         # directly but using the sub-fields individually is easier to read and
         # understand)
-        
+
         # Standard axes: columns = X, rows = Y, sections = Z
         header.mapc = 1
         header.mapr = 2
         header.maps = 3
-        
-        time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        header.label[0] = '{0:40s}{1:>39s} '.format('Created by mrcfile.py',
-                                                    time)
+
+        time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        header.label[0] = "{0:40s}{1:>39s} ".format("Created by mrcfile.py", time)
         header.nlabl = 1
-        
+
         self.reset_header_stats()
-    
+
     @property
     def header(self):
         """Get the header as a :class:`numpy record array <numpy.recarray>`."""
         return self._header
-    
+
+    def set_header(self, header):
+        """Replace the header.
+
+        If you set the header you should also set the
+        ``header.exttyp`` field to indicate the type of header.
+        """
+        self._check_writeable()
+        self._header = header
+
     @property
     def extended_header(self):
         """Get the extended header as a :class:`numpy array <numpy.ndarray>`.
-        
+
         If this :class:`MrcObject` was read from a file and the extended header
         type was recognised, its dtype will be set appropriately. (Currently
         the only supported type is ``'FEI1'``.) Otherwise, the dtype will be
         void (raw data, dtype ``'V'``). If the actual data type of the extended
         header is known, the dtype of the array can be changed to match.
-        
+
         The extended header may be modified in place. To replace it completely,
         call :meth:`set_extended_header`.
         """
         return self._extended_header
-    
+
     def set_extended_header(self, extended_header):
         """Replace the extended header.
         
@@ -195,12 +207,12 @@ class MrcObject(object):
         self._check_writeable()
         self._extended_header = extended_header
         self.header.nsymbt = extended_header.nbytes
-    
+
     @property
     def data(self):
         """Get the data as a :class:`numpy array <numpy.ndarray>`."""
         return self._data
-    
+
     def set_data(self, data):
         """Replace the data array.
         
@@ -210,25 +222,24 @@ class MrcObject(object):
         updated.
         """
         self._check_writeable()
-        
+
         # Check if the new data's dtype is valid without changes
         mode = utils.mode_from_dtype(data.dtype)
-        new_dtype = (utils.dtype_from_mode(mode)
-                     .newbyteorder(data.dtype.byteorder))
-        
+        new_dtype = utils.dtype_from_mode(mode).newbyteorder(data.dtype.byteorder)
+
         # Copy the data if necessary to ensure correct dtype and C ordering
-        new_data = np.asanyarray(data, new_dtype, order='C')
-        
+        new_data = np.asanyarray(data, new_dtype, order="C")
+
         # Replace the old data array with the new one, and update the header
         self._close_data()
         self._set_new_data(new_data)
         self.update_header_from_data()
         self.update_header_stats()
-    
+
     def _close_data(self):
         """Close the data array."""
         self._data = None
-    
+
     def _set_new_data(self, data):
         """Replace the data array with a new one.
         
@@ -236,7 +247,7 @@ class MrcObject(object):
         an MRC file.
         """
         self._data = data
-    
+
     @property
     def voxel_size(self):
         """Get or set the voxel size in angstroms.
@@ -269,7 +280,7 @@ class MrcObject(object):
         sizes = np.rec.array((x, y, z), VOXEL_SIZE_DTYPE)
         sizes.flags.writeable = False
         return sizes
-    
+
     @voxel_size.setter
     def voxel_size(self, voxel_size):
         self._check_writeable()
@@ -285,7 +296,7 @@ class MrcObject(object):
                 # If the item() method doesn't exist, assume we have a 3-tuple
                 sizes = voxel_size
         self._set_voxel_size(*sizes)
-    
+
     def _set_voxel_size(self, x_size, y_size, z_size):
         """Set the voxel size.
         
@@ -297,7 +308,7 @@ class MrcObject(object):
         self.header.cella.x = x_size * self.header.mx
         self.header.cella.y = y_size * self.header.my
         self.header.cella.z = z_size * self.header.mz
-    
+
     def is_single_image(self):
         """Identify whether the file represents a single image.
         
@@ -305,7 +316,7 @@ class MrcObject(object):
             :data:`True` if the data array is two-dimensional.
         """
         return self.data.ndim == 2
-    
+
     def is_image_stack(self):
         """Identify whether the file represents a stack of images.
         
@@ -313,9 +324,8 @@ class MrcObject(object):
             :data:`True` if the data array is three-dimensional and the space group
             is zero.
         """
-        return (self.data.ndim == 3
-                and self.header.ispg == IMAGE_STACK_SPACEGROUP)
-    
+        return self.data.ndim == 3 and self.header.ispg == IMAGE_STACK_SPACEGROUP
+
     def is_volume(self):
         """Identify whether the file represents a volume.
         
@@ -323,9 +333,8 @@ class MrcObject(object):
             :data:`True` if the data array is three-dimensional and the space
             group is not zero.
         """
-        return (self.data.ndim == 3
-                and self.header.ispg != IMAGE_STACK_SPACEGROUP)
-    
+        return self.data.ndim == 3 and self.header.ispg != IMAGE_STACK_SPACEGROUP
+
     def is_volume_stack(self):
         """Identify whether the file represents a stack of volumes.
         
@@ -333,7 +342,7 @@ class MrcObject(object):
             :data:`True` if the data array is four-dimensional.
         """
         return self.data.ndim == 4
-    
+
     def set_image_stack(self):
         """Change three-dimensional data to represent an image stack.
         
@@ -344,10 +353,10 @@ class MrcObject(object):
         """
         self._check_writeable()
         if self.data.ndim != 3:
-            raise ValueError('Only 3D data can be changed into an image stack')
+            raise ValueError("Only 3D data can be changed into an image stack")
         self.header.ispg = IMAGE_STACK_SPACEGROUP
         self.header.mz = 1
-    
+
     def set_volume(self):
         """Change three-dimensional data to represent a volume.
         
@@ -359,11 +368,11 @@ class MrcObject(object):
         """
         self._check_writeable()
         if self.data.ndim != 3:
-            raise ValueError('Only 3D data can be changed into a volume')
+            raise ValueError("Only 3D data can be changed into a volume")
         if self.is_image_stack():
             self.header.ispg = VOLUME_SPACEGROUP
             self.header.mz = self.header.nz
-    
+
     def update_header_from_data(self):
         """Update the header from the data array.
         
@@ -390,21 +399,21 @@ class MrcObject(object):
         array need to be inspected.)
         """
         self._check_writeable()
-        
+
         # Check the dtype is one we can handle and update mode to match
         header = self.header
         header.mode = utils.mode_from_dtype(self.data.dtype)
-        
+
         # Ensure header byte order and machine stamp match the data's byte order
         data_byte_order = self.data.dtype.byteorder
         header_byte_order = header.mode.dtype.byteorder
-        if (data_byte_order != '|'
-            and not utils.byte_orders_equal(data_byte_order, header_byte_order)):
+        if data_byte_order != "|" and not utils.byte_orders_equal(
+            data_byte_order, header_byte_order
+        ):
             header.byteswap(True)
             header.dtype = header.dtype.newbyteorder(data_byte_order)
-        header.machst = utils.machine_stamp_from_byte_order(header.mode.dtype
-                                                            .byteorder)
-        
+        header.machst = utils.machine_stamp_from_byte_order(header.mode.dtype.byteorder)
+
         shape = self.data.shape
         axes = len(shape)
         if axes == 2:
@@ -432,8 +441,8 @@ class MrcObject(object):
             header.mz = shape[1]
             header.nz = shape[0] * shape[1]
         else:
-            raise ValueError('Data must be 2-, 3- or 4-dimensional')
-    
+            raise ValueError("Data must be 2-, 3- or 4-dimensional")
+
     def update_header_stats(self):
         """Update the header's ``dmin``, ``dmax``, ``dmean`` and ``rms`` fields
         from the data.
@@ -442,24 +451,24 @@ class MrcObject(object):
         files larger than the currently available memory.
         """
         self._check_writeable()
-        
+
         self.header.dmin = self.data.min()
         self.header.dmax = self.data.max()
-        
+
         # Use a float64 accumulator to calculate mean and standard deviation
         # This prevents overflow errors during calculation
         self.header.dmean = np.float32(self.data.mean(dtype=np.float64))
         self.header.rms = np.float32(self.data.std(dtype=np.float64))
-    
+
     def reset_header_stats(self):
         """Set the header statistics to indicate that the values are unknown."""
         self._check_writeable()
-        
+
         self.header.dmin = 0
         self.header.dmax = -1
         self.header.dmean = -2
         self.header.rms = -1
-    
+
     def print_header(self, print_file=None):
         """Print the contents of all header fields.
         
@@ -470,9 +479,8 @@ class MrcObject(object):
                 means output will be printed to :data:`sys.stdout`.
         """
         for item in self.header.dtype.names:
-            print('{0:15s} : {1}'.format(item, self.header[item]),
-                  file=print_file)
-    
+            print("{0:15s} : {1}".format(item, self.header[item]), file=print_file)
+
     def validate(self, print_file=None):
         """Validate this MrcObject.
         
@@ -518,16 +526,19 @@ class MrcObject(object):
             does not meet the MRC format specification in any way.
         """
         valid = True
-        
+
         def log(message):
             print(message, file=print_file)
-        
+
         # Check map ID string
         if self.header.map != MAP_ID:
-            log("Map ID string is incorrect: found {0}, should be {1}"
-                .format(self.header.map, MAP_ID))
+            log(
+                "Map ID string is incorrect: found {0}, should be {1}".format(
+                    self.header.map, MAP_ID
+                )
+            )
             valid = False
-        
+
         # Check machine stamp
         try:
             utils.byte_order_from_machine_stamp(self.header.machst)
@@ -535,43 +546,49 @@ class MrcObject(object):
             pretty_bytes = utils.pretty_machine_stamp(self.header.machst)
             log("Invalid machine stamp: " + pretty_bytes)
             valid = False
-        
+
         # Check mode is valid
         try:
             utils.dtype_from_mode(self.header.mode)
         except ValueError:
             log("Invalid mode: {0}".format(self.header.mode))
             valid = False
-        
+
         # Check map dimensions and other fields are non-negative
-        for field in ['nx', 'ny', 'nz', 'mx', 'my', 'mz', 'ispg', 'nlabl']:
+        for field in ["nx", "ny", "nz", "mx", "my", "mz", "ispg", "nlabl"]:
             if self.header[field] < 0:
                 log("Header field '{0}' is negative".format(field))
                 valid = False
-        
+
         # Check cell dimensions are non-negative
-        for field in ['x', 'y', 'z']:
+        for field in ["x", "y", "z"]:
             if self.header.cella[field] < 0:
                 log("Cell dimension '{0}' is negative".format(field))
                 valid = False
-        
+
         # Check axis mapping is valid
         axes = set()
-        for field in ['mapc', 'mapr', 'maps']:
+        for field in ["mapc", "mapr", "maps"]:
             axes.add(int(self.header[field]))
         if axes != {1, 2, 3}:
-            log("Invalid axis mapping: found {0}, should be [1, 2, 3]"
-                .format(sorted(list(axes))))
+            log(
+                "Invalid axis mapping: found {0}, should be [1, 2, 3]".format(
+                    sorted(list(axes))
+                )
+            )
             valid = False
-        
+
         # Check mz value for volume stacks
         if utils.spacegroup_is_volume_stack(self.header.ispg):
             if self.header.nz % self.header.mz != 0:
-                log("Error in dimensions for volume stack: nz should be "
-                    "divisible by mz. Found nz = {0}, mz = {1})"
-                    .format(self.header.nz, self.header.mz))
+                log(
+                    "Error in dimensions for volume stack: nz should be "
+                    "divisible by mz. Found nz = {0}, mz = {1})".format(
+                        self.header.nz, self.header.mz
+                    )
+                )
                 valid = False
-        
+
         # Check nlabl is correct
         count = 0
         seen_empty_label = False
@@ -579,29 +596,38 @@ class MrcObject(object):
             if len(label.strip()) > 0:
                 count += 1
                 if seen_empty_label:
-                    log("Error in header labels: empty labels appear between "
-                        "text-containing labels")
+                    log(
+                        "Error in header labels: empty labels appear between "
+                        "text-containing labels"
+                    )
                     valid = False
             else:
                 seen_empty_label = True
         if count != self.header.nlabl:
-            log("Error in header labels: nlabl is {0} "
-                "but {1} labels contain text".format(self.header.nlabl, count))
+            log(
+                "Error in header labels: nlabl is {0} "
+                "but {1} labels contain text".format(self.header.nlabl, count)
+            )
             valid = False
-        
+
         # Check MRC format version
         if self.header.nversion != MRC_FORMAT_VERSION:
-            log("File does not declare MRC format version 20140: nversion = {0}"
-                .format(self.header.nversion))
+            log(
+                "File does not declare MRC format version 20140: nversion = {0}".format(
+                    self.header.nversion
+                )
+            )
             valid = False
-        
+
         # Check extended header type is set to a known value
-        valid_exttypes = [b'CCP4', b'MRCO', b'SERI', b'AGAR', b'FEI1']
+        valid_exttypes = [b"CCP4", b"MRCO", b"SERI", b"AGAR", b"FEI1"]
         if self.header.nsymbt > 0 and self.header.exttyp not in valid_exttypes:
-            log("Extended header type is undefined or unrecognised: exttyp = "
-                "'{0}'".format(self.header.exttyp.item().decode('ascii')))
+            log(
+                "Extended header type is undefined or unrecognised: exttyp = "
+                "'{0}'".format(self.header.exttyp.item().decode("ascii"))
+            )
             valid = False
-        
+
         # Check data statistics
         if self.data is not None:
             real_rms = real_min = real_max = real_mean = 0
@@ -610,22 +636,31 @@ class MrcObject(object):
                 real_min = self.data.min()
                 real_max = self.data.max()
                 real_mean = self.data.mean()
-            if (self.header.rms >= 0 and not np.isclose(real_rms, self.header.rms)):
-                log("Error in data statistics: RMS deviation is {0} but the value "
-                    "in the header is {1}".format(real_rms, self.header.rms))
+            if self.header.rms >= 0 and not np.isclose(real_rms, self.header.rms):
+                log(
+                    "Error in data statistics: RMS deviation is {0} but the value "
+                    "in the header is {1}".format(real_rms, self.header.rms)
+                )
                 valid = False
             if self.header.dmin < self.header.dmax and self.header.dmin != real_min:
-                log("Error in data statistics: minimum is {0} but the value "
-                    "in the header is {1}".format(real_min, self.header.dmin))
+                log(
+                    "Error in data statistics: minimum is {0} but the value "
+                    "in the header is {1}".format(real_min, self.header.dmin)
+                )
                 valid = False
             if self.header.dmin < self.header.dmax and self.header.dmax != real_max:
-                log("Error in data statistics: maximum is {0} but the value "
-                    "in the header is {1}".format(real_max, self.header.dmax))
+                log(
+                    "Error in data statistics: maximum is {0} but the value "
+                    "in the header is {1}".format(real_max, self.header.dmax)
+                )
                 valid = False
-            if (self.header.dmean > min(self.header.dmin, self.header.dmax)
-                and not np.isclose(real_mean, self.header.dmean)):
-                log("Error in data statistics: mean is {0} but the value "
-                    "in the header is {1}".format(real_mean, self.header.dmean))
+            if self.header.dmean > min(
+                self.header.dmin, self.header.dmax
+            ) and not np.isclose(real_mean, self.header.dmean):
+                log(
+                    "Error in data statistics: mean is {0} but the value "
+                    "in the header is {1}".format(real_mean, self.header.dmean)
+                )
                 valid = False
-        
+
         return valid
